@@ -25,18 +25,23 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 % Must return a tuple {reply, Data, NewState}, where:
 %   - Data is what is sent to GUI, either the atom `ok` or a tuple {error, Atom, "Error message"}
 %   - NewState is the updated state of the client
-
+        
 % Join channel
 handle(St, {join, Channel}) ->
-    % TODO: Implement this function
-    % {reply, ok, St} ;
-    {reply, {error, not_implemented, "join not implemented"}, St} ;
+    Response = (catch genserver:request(St#client_st.server, {join, Channel, St#client_st.nick, self()})),
+
+    case Response of
+        {'EXIT', _} ->
+            {reply, {error, server_not_reached, "Server does not respond"}, St};
+        join -> {reply, ok, St};
+        error -> {reply, {error, user_already_joined, "User already joined"}, St}
+    end;
 
 % Leave channel
 handle(St, {leave, Channel}) ->
     % TODO: Implement this function
-    % {reply, ok, St} ;
-    {reply, {error, not_implemented, "leave not implemented"}, St} ;
+    {reply, ok, St} ;
+    %{reply, {error, not_implemented, "leave not implemented"}, St} ;
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
