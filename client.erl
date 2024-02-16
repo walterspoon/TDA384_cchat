@@ -6,8 +6,7 @@
 -record(client_st, {
     gui, % atom of the GUI process
     nick, % nick/username of the client
-    server, % atom of the chat server
-    channels % list of channels the client is currently in
+    server % atom of the chat server
 }).
 
 % Return an initial state record. This is called from GUI.
@@ -16,10 +15,8 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
     #client_st{
         gui = GUIAtom,
         nick = Nick,
-        server = ServerAtom,
-        channels = []  %% Initialize channels to an empty list
+        server = ServerAtom
     }.
-
 
 % handle/2 handles each kind of request from GUI
 % Parameters:
@@ -31,46 +28,20 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
         
 % Join channel
 handle(St, {join, Channel}) ->
-    case lists:member(St#client_st.server, registered()) of
-    true -> 
-        case lists:member(Channel, St#client_st.channels) of
-            true -> {reply, {error, already_joined, "Already joined this channel"}, St};
-            false -> 
-                Result = (catch genserver:request(St#client_st.server, {join, Channel, self()})),
-                case Result of
-                    {'EXIT',_} -> {reply, {error, server_not_reached, "Server does not respond"}, St};
-                    ok -> {reply, ok, St#client_st{channels = [Channel | St#client_st.channels]}};
-                    failed -> {reply, {error, user_already_joined, "Already in channel"}, St}
-                end
-        end;
-    false -> {reply, {error, server_not_reached, "Server unreachable"}, St}
-  end;
-
+    Server = St#client_st.server,
+    Server ! {join, Channel, St#client_st.nick},
+    {reply, ok, St};
 
 % Leave channel
 handle(St, {leave, Channel}) ->
-    case lists:member(Channel, St#client_st.channels) of
-        true -> 
-            Result = (catch genserver:request(St#client_st.server, {leave, Channel, self()})),
-            case Result of
-                {'EXIT',_} -> {reply, {error, server_not_reached, "Server does not respond"}, St};
-                ok -> {reply, ok, St#client_st{channels = lists:delete(Channel, St#client_st.channels)}}
-            end;
-        false -> {reply, {error, not_in_channel, "You are not in this channel"}, St}
-    end;
+    Server = St#client_st.server,
+    Server ! {leave, Channel, St#client_st.nick},
+    {reply, ok, St};
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    case lists:member(Channel, St#client_st.channels) of
-        true -> 
-            Result = (catch genserver:request(St#client_st.server, {message_send, Channel, St#client_st.nick, Msg})),
-            case Result of
-                {'EXIT',_} -> {reply, {error, server_not_reached, "Server does not respond"}, St};
-                ok -> {reply, ok, St};
-                failed -> {reply, {error, message_not_sent, "Message not sent"}, St}
-            end;
-        false -> {reply, {error, not_in_channel, "You are not in this channel"}, St}
-    end;
+    Channel ! {message, St#client_st.nick, Msg},
+    {reply, ok, St};
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
@@ -97,4 +68,4 @@ handle(St, quit) ->
 
 % Catch-all for any unhandled requests
 handle(St, Data) ->
-    {reply, {error, not_implemented, "Client does not handle this command"}, St}.
+    {reply, {error, not_implemented, "Client does not handle this command"}, St} .
