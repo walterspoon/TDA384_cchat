@@ -7,6 +7,13 @@
 % - Function F is the body of the server:
 %   - takes 2 params : state, request message
 %   - returns a tuple: new state, response message
+
+% Starta en ny process, antingen en server eller en kanal.
+% State är initial_state antingen i server.erl eller client.erl
+% F är handle-funktionen i antingen server.erl eller client.erl
+% Processen startas och kör sedan loop-funktionen.
+% Loop-funktionen väntar på meddelanden antingen från servern eller klienten.
+% Själva funktionalliteten i funktionen hanteras i server.erl respektive client.erl
 start(Atom, State, F) ->
   Pid = spawn(fun() -> loop(State, F) end),
   catch(unregister(Atom)),

@@ -18,10 +18,13 @@ initial_state() ->
 start(ServerAtom) ->
     genserver:start(ServerAtom, initial_state(), fun handle/2).
 
-handle(State, {join, Channel}) ->
+handle(State, {join, Channel, Pid}) ->
     %% Handle the join command here.
     %% Add the channel to the list of channels in the state.
     NewState = State#state{channels = [Channel | State#state.channels]},
+    % Server ska bara hålla koll på vilka kanaler som finns.
+    % Finns kanalen som en klient vill joina så låter servern klienten joina kanalen.
+    % Finns INTE kanalen så skapar servern en ny kanal (process) och låter klienten joina kanalen.
     {reply, ok, NewState};
 
 handle(State, Message) ->
