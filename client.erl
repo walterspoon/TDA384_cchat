@@ -29,20 +29,18 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 % Join channel
 handle(St, {join, Channel}) ->
     Server = St#client_st.server,
-    Server ! {join, Channel, St#client_st.nick},
-    % Perhaps the message passing should look like the following:
-    % Server ! {join, Self(), St#client_st.nick, Channel},
-    {reply, ok, St};
+    Result = genserver:request(Server, {join, self(), St#client_st.nick, Channel}),
+    {reply, Result, St};
 
 % Leave channel
 handle(St, {leave, Channel}) ->
     Server = St#client_st.server,
-    Server ! {leave, Channel, St#client_st.nick},
+    Server ! {leave, self(), St#client_st.nick, Channel},
     {reply, ok, St};
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    Channel ! {message, St#client_st.nick, Msg},
+    Channel ! {message, self(), St#client_st.nick, Msg},
     {reply, ok, St};
 
 % This case is only relevant for the distinction assignment!
@@ -69,5 +67,5 @@ handle(St, quit) ->
     {reply, ok, St} ;
 
 % Catch-all for any unhandled requests
-handle(St, Data) ->
+handle(St, _) ->
     {reply, {error, not_implemented, "Client does not handle this command"}, St} .

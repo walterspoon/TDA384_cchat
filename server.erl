@@ -1,54 +1,50 @@
 -module(server).
--export([start/1,stop/1,handle/2]).
-
-% Start a new server process with the given name
-% Do not change the signature of this function.
+-export([start/1, stop/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {
     nicks,   % list of all nicks registered so far
     channels % list of all channels created so far
 }).
 
-initial_state() ->
-    #state{
-        nicks = [],
-        channels = []
-    }.
+init(_) ->
+    {ok, #state{nicks = [], channels = []}}.
 
 start(ServerAtom) ->
-    genserver:start(ServerAtom, initial_state(), fun handle/2).
+    gen_server:start_link({local, ServerAtom}, ?MODULE, [], []).
 
-handle(State, {join, Channel, Nick}) ->
-    %% Handle the join command here.
-    %% Add the channel to the list of channels in the state.
-    % Server ska bara hålla koll på vilka kanaler som finns.
-    % Finns kanalen som en klient vill joina så låter servern klienten joina kanalen.
-    % Finns INTE kanalen så skapar servern en ny kanal (process) och låter klienten joina kanalen.
-
-    case lists:member(Channel,State#state.channels) of
-        true ->
-            % Kanalen existerar
-            % Låt klienten joina kanalen
-            channel:joinChannel(Nick, State),
+handle_call({join, From, Nick, Channel}, _From, State) ->
+    Channels = State#state.channels,
+    case dict:find(Channel, Channels) of
+        {ok, ChanPid} ->
+            % The channel exists
+            % Let the client join the channel asynchronously
+            gen_server:cast(ChanPid, {join, Nick, From}),
             {reply, ok, State};
-        false ->
-            % Kanalen finns INTE
-            % Skapa en ny kanal och låt klienten joina kanalen
-            channel:start(Channel),
-            channel:joinChannel(Nick, State),
-            NewState = State#state{channels = [Channel | State#state.channels]},
+        error ->
+            % The channel does not exist
+            % Create a new channel and let the client join the channel asynchronously
+            ChanPid = spawn(channel, start, [Channel]),
+            NewChannels = dict:store(Channel, ChanPid, Channels),
+            NewState = State#state{channels = NewChannels},
+            gen_server:cast(ChanPid, {join, Nick, From}),
             {reply, ok, NewState}
-    end.
+    end;
 
-%handle(State, Message) ->
-%    %% Handle other messages here.
-%    %% Log the message and leave the state unchanged.
-%    io:format("Received message: ~p~n", [Message]),
-%    {reply, ok, State}.
+handle_call(_Request, _From, State) ->
+    {reply, ok, State}.
 
+handle_cast(_Msg, State) ->
+    {noreply, State}.
 
-% Stop the server process registered to the given name,
-% together with any other associated processes
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
 stop(ServerAtom) ->
-    genserver:stop(ServerAtom).
-    
+    gen_server:stop(ServerAtom).

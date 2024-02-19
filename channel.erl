@@ -1,28 +1,38 @@
 -module(channel).
--export([start/1, joinChannel/2, handle/2]).
+-behaviour(gen_server).
 
--record(state, {
-    nicks   % list of all nicks registered so far
-}).
+-export([start/1, joinChannel/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
-initial_state() ->
-    #state{
-        nicks = []
-    }.
+-record(state, {clients = []}).
 
-start(ServerAtom) ->
-    genserver:start(ServerAtom, initial_state(), fun handle/2).
+init(_) ->
+    {ok, #state{clients = []}}.
 
-joinChannel(Nick, State) ->
-    NewState = State#state{nicks = [Nick | State#state.nicks]},
-    {ok, NewState}.
+start(ChannelName) ->
+    gen_server:start_link({local, list_to_atom(ChannelName)}, ?MODULE, {}, []).
 
-handle(State, {join, Nick}) ->
-    {reply, ok, joinChannel(Nick, State)};
-handle(State, {message, Sender, Msg}) ->
-    BroadcastMsg = {message_receive, Sender, Msg},
-    {noreply, [Client || Client <- State#state.nicks, Client /= Sender], BroadcastMsg};
-handle(State, Message) ->
-    io:format("Received message: ~p~n", [Message]),
+joinChannel(Nick, From) ->
+    gen_server:cast(self(), {join, Nick, From}).
+
+handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
+handle_cast({join, Nick, From}, State) ->
+    NewState = State#state{clients = [{Nick, From} | State#state.clients]},
+    {noreply, NewState};
+handle_cast({message, Sender, Msg}, State) ->
+    BroadcastMsg = {message_receive, Sender, Msg},
+    lists:foreach(fun({_, Pid}) -> Pid ! BroadcastMsg end, State#state.clients),
+    {noreply, State};
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
