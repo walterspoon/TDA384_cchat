@@ -30,6 +30,8 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 handle(St, {join, Channel}) ->
     Server = St#client_st.server,
     Server ! {join, Channel, St#client_st.nick},
+    % Perhaps the message passing should look like the following:
+    % Server ! {join, Self(), St#client_st.nick, Channel},
     {reply, ok, St};
 
 % Leave channel
