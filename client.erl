@@ -28,6 +28,8 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
         
 % Join channel
 handle(St, {join, Channel}) ->
+
+    io:fwrite("test client!"),
     Server = St#client_st.server,
     Result = genserver:request(Server, {join, self(), St#client_st.nick, Channel}),
     {reply, Result, St};

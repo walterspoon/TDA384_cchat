@@ -53,13 +53,21 @@ request(Pid, Data) ->
 % If timeout expires: a "timeout_error" exception is thrown.
 request(Pid, Data, Timeout) ->
   Ref = make_ref(),
+
+  io:fwrite("test request!"),
   Pid ! {request, self(), Ref, Data},
   receive
     {result, Ref, Result} ->
+
+    io:fwrite("test 1"),
       Result;
     {exit, Ref, Reason} ->
+
+    io:fwrite("test 2"),
       exit(Reason)
   after Timeout ->
+     
+    io:fwrite("test 3"),
     throw(timeout_error)
   end.
 
