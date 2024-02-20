@@ -33,10 +33,10 @@ handle_call(State, {join, From, Nick, Channel}) ->
             io:fwrite("Channel ~p created!~n", [Channel]),
             io:fwrite("Result2: ~p~n", [Result]),
             {reply, Result, NewState}
-    end.
+    end;
 
-%handle_call(State, _) ->
-%    {reply, ok, State}.
+handle_call(State, _) ->
+    {reply, ok, State}.
 
 stop(ServerAtom) ->
     genserver:stop(ServerAtom),
