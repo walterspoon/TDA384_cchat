@@ -18,6 +18,14 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
         server = ServerAtom
     }.
 
+% Send request via genserver
+sendRequest(RecieverPid, Request) ->
+    try genserver:request(RecieverPid, Request) of
+        Response -> Response
+    catch
+        timeout_error -> {error, server_not_reached, "Server not reached!"}
+    end.
+
 % handle/2 handles each kind of request from GUI
 % Parameters:
 %   - the current state of the client (St)
@@ -29,19 +37,20 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 % Join channel
 handle(St, {join, Channel}) ->
     Server = St#client_st.server,
-    Result = genserver:request(Server, {join, self(), St#client_st.nick, Channel}),
+    Result = sendRequest(Server, {join, self(), St#client_st.nick, Channel}),
     {reply, Result, St};
 
 % Leave channel
 handle(St, {leave, Channel}) ->
     % Result = Channel ! {St#client_st.nick, {leave, self()}},
-    Result = genserver:request(list_to_atom(Channel), {leave, self()}),
+    Result = sendRequest(list_to_atom(Channel), {leave, self()}),
     {reply, Result, St};
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    Channel ! {message, self(), St#client_st.nick, Msg},
-    {reply, ok, St};
+    %Result = Channel ! {message, self(), St#client_st.nick, Msg},
+    Result = sendRequest(list_to_atom(Channel), {message, self(), St#client_st.nick, Msg}),
+    {reply, Result, St};
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
@@ -58,6 +67,8 @@ handle(St, whoami) ->
 
 % Incoming message (from channel, to GUI)
 handle(St = #client_st{gui = GUI}, {message_receive, Channel, Nick, Msg}) ->
+    io:fwrite("Vi kommer hit!  "),
+    io:fwrite("Channel: ~p, Nick: ~p, Msg: ~p~n", [Channel, Nick, Msg]),
     gen_server:call(GUI, {message_receive, Channel, Nick++"> "++Msg}),
     {reply, ok, St} ;
 

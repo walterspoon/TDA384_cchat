@@ -12,6 +12,14 @@ initial_state() ->
         channels = []
     }.
 
+% Send request via genserver
+sendRequest(RecieverPid, Request) ->
+    try genserver:request(RecieverPid, Request) of
+        Response -> Response
+    catch
+        timeout_error -> {error, server_not_reached, "Server not reached!"}
+    end.
+
 start(ServerAtom) ->
     genserver:start(ServerAtom, initial_state(), fun handle_call/2).
 
@@ -20,16 +28,16 @@ handle_call(State, {join, From, Nick, Channel}) ->
     case lists:member(Channel, State#state.channels) of
         true ->
             % The channel exists
-            Result = genserver:request(list_to_atom(Channel), {join, From}),
+            Result = sendRequest(list_to_atom(Channel), {join, From}),
             io:fwrite("Result: ~p~n", [Result]),
-			{reply, Result, State};
+            {reply, Result, State};
         false ->
             % The channel does not exist
             NewNicks = [Nick | State#state.nicks],
             NewChannels = [Channel | State#state.channels],
             NewState = State#state{channels = NewChannels, nicks = NewNicks},
             channel:start(Channel),
-            Result = genserver:request(list_to_atom(Channel), {join, From}),
+            Result = sendRequest(list_to_atom(Channel), {join, From}),
             io:fwrite("Channel ~p created!~n", [Channel]),
             io:fwrite("Result2: ~p~n", [Result]),
             {reply, Result, NewState}
