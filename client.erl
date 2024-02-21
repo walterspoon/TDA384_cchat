@@ -6,8 +6,7 @@
 -record(client_st, {
     gui, % atom of the GUI process
     nick, % nick/username of the client
-    server, % atom of the chat server
-    channels % list of channels the client is currently in
+    server % atom of the chat server
 }).
 
 % Return an initial state record. This is called from GUI.
@@ -16,10 +15,16 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
     #client_st{
         gui = GUIAtom,
         nick = Nick,
-        server = ServerAtom,
-        channels = []  %% Initialize channels to an empty list
+        server = ServerAtom
     }.
 
+% Send request via genserver
+sendRequest(RecieverPid, Request) ->
+    try genserver:request(RecieverPid, Request) of
+        Response -> Response
+    catch
+        timeout_error -> {error, server_not_reached, "Server not reached!"}
+    end.
 
 % handle/2 handles each kind of request from GUI
 % Parameters:
@@ -31,51 +36,42 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
         
 % Join channel
 handle(St, {join, Channel}) ->
-    case lists:member(St#client_st.server, registered()) of
-    true -> 
-        case lists:member(Channel, St#client_st.channels) of
-            true -> {reply, {error, already_joined, "Already joined this channel"}, St};
-            false -> 
-                Result = (catch genserver:request(St#client_st.server, {join, Channel, self()})),
-                case Result of
-                    {'EXIT',_} -> {reply, {error, server_not_reached, "Server does not respond"}, St};
-                    ok -> {reply, ok, St#client_st{channels = [Channel | St#client_st.channels]}};
-                    failed -> {reply, {error, user_already_joined, "Already in channel"}, St}
-                end
-        end;
-    false -> {reply, {error, server_not_reached, "Server unreachable"}, St}
-  end;
-
+    Server = St#client_st.server,
+    Result = sendRequest(Server, {join, self(), St#client_st.nick, Channel}),
+    {reply, Result, St};
 
 % Leave channel
 handle(St, {leave, Channel}) ->
-    case lists:member(Channel, St#client_st.channels) of
-        true -> 
-            Result = (catch genserver:request(St#client_st.server, {leave, Channel, self()})),
-            case Result of
-                {'EXIT',_} -> {reply, {error, server_not_reached, "Server does not respond"}, St};
-                ok -> {reply, ok, St#client_st{channels = lists:delete(Channel, St#client_st.channels)}}
-            end;
-        false -> {reply, {error, not_in_channel, "You are not in this channel"}, St}
-    end;
+    % Result = Channel ! {St#client_st.nick, {leave, self()}},
+    Result = sendRequest(list_to_atom(Channel), {leave, self()}),
+    {reply, Result, St};
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    case lists:member(Channel, St#client_st.channels) of
-        true -> 
-            Result = (catch genserver:request(St#client_st.server, {message_send, Channel, St#client_st.nick, Msg})),
-            case Result of
-                {'EXIT',_} -> {reply, {error, server_not_reached, "Server does not respond"}, St};
-                ok -> {reply, ok, St};
-                failed -> {reply, {error, message_not_sent, "Message not sent"}, St}
-            end;
-        false -> {reply, {error, not_in_channel, "You are not in this channel"}, St}
+    case whereis(list_to_atom(Channel)) of
+        undefined ->
+            {reply, {error, server_not_reached, "Channel does not respond"}, St};
+        _ ->
+        Result = sendRequest(list_to_atom(Channel), {message, self(), St#client_st.nick, Msg}),
+        {reply, Result, St}
     end;
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
 handle(St, {nick, NewNick}) ->
-    {reply, ok, St#client_st{nick = NewNick}} ;
+    Server = St#client_st.server,
+    OldNick = St#client_st.nick,
+    Result = sendRequest(Server, {nick, NewNick, OldNick}),
+    io:fwrite("Result Nick Change: ~p~n", [Result]),
+    case Result of
+        ok ->
+            io:fwrite("     NICK NOT TAKEN!     "),
+            NewSt = St#client_st{nick = NewNick},
+            {reply, Result, NewSt};
+        {error, nick_taken, _} ->
+            io:fwrite("     NICK TAKEN!     "),
+            {reply, Result, St}
+    end;
 
 % ---------------------------------------------------------------------------
 % The cases below do not need to be changed...
@@ -87,6 +83,8 @@ handle(St, whoami) ->
 
 % Incoming message (from channel, to GUI)
 handle(St = #client_st{gui = GUI}, {message_receive, Channel, Nick, Msg}) ->
+    io:fwrite("Vi kommer hit!  "),
+    io:fwrite("Channel: ~p, Nick: ~p, Msg: ~p~n", [Channel, Nick, Msg]),
     gen_server:call(GUI, {message_receive, Channel, Nick++"> "++Msg}),
     {reply, ok, St} ;
 
@@ -96,5 +94,5 @@ handle(St, quit) ->
     {reply, ok, St} ;
 
 % Catch-all for any unhandled requests
-handle(St, Data) ->
-    {reply, {error, not_implemented, "Client does not handle this command"}, St}.
+handle(St, _) ->
+    {reply, {error, not_implemented, "Client does not handle this command"}, St} .

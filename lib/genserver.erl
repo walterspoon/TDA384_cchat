@@ -56,10 +56,13 @@ request(Pid, Data, Timeout) ->
   Pid ! {request, self(), Ref, Data},
   receive
     {result, Ref, Result} ->
+
       Result;
     {exit, Ref, Reason} ->
+
       exit(Reason)
   after Timeout ->
+
     throw(timeout_error)
   end.
 
