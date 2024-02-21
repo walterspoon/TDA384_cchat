@@ -48,14 +48,30 @@ handle(St, {leave, Channel}) ->
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    %Result = Channel ! {message, self(), St#client_st.nick, Msg},
-    Result = sendRequest(list_to_atom(Channel), {message, self(), St#client_st.nick, Msg}),
-    {reply, Result, St};
+    case whereis(list_to_atom(Channel)) of
+        undefined ->
+            {reply, {error, server_not_reached, "Channel does not respond"}, St};
+        _ ->
+        Result = sendRequest(list_to_atom(Channel), {message, self(), St#client_st.nick, Msg}),
+        {reply, Result, St}
+    end;
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
 handle(St, {nick, NewNick}) ->
-    {reply, ok, St#client_st{nick = NewNick}} ;
+    Server = St#client_st.server,
+    OldNick = St#client_st.nick,
+    Result = sendRequest(Server, {nick, NewNick, OldNick}),
+    io:fwrite("Result Nick Change: ~p~n", [Result]),
+    case Result of
+        ok ->
+            io:fwrite("     NICK NOT TAKEN!     "),
+            NewSt = St#client_st{nick = NewNick},
+            {reply, Result, NewSt};
+        {error, nick_taken, _} ->
+            io:fwrite("     NICK TAKEN!     "),
+            {reply, Result, St}
+    end;
 
 % ---------------------------------------------------------------------------
 % The cases below do not need to be changed...

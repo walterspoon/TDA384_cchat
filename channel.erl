@@ -1,6 +1,6 @@
 -module(channel).
 
--export([start/1, handle_call/2]).
+-export([start/1, handle_call/2, stop/1]).
 
 -record(state, {
     clients = [], % list of all channels created so far
@@ -72,3 +72,8 @@ handle_call(State, {message, From, Nick, Msg}) ->
 
 handle_call(State, _) ->
     {reply, ok, State}.
+
+stop(Channel) ->
+    io:fwrite(" STOP I CHANNEL!  "),
+    genserver:stop(Channel),
+    ok.

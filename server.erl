@@ -28,9 +28,11 @@ handle_call(State, {join, From, Nick, Channel}) ->
     case lists:member(Channel, State#state.channels) of
         true ->
             % The channel exists
+            NewNicks = [Nick | State#state.nicks],
             Result = sendRequest(list_to_atom(Channel), {join, From}),
+            NewState = State#state{nicks = NewNicks},
             io:fwrite("Result: ~p~n", [Result]),
-            {reply, Result, State};
+            {reply, Result, NewState};
         false ->
             % The channel does not exist
             NewNicks = [Nick | State#state.nicks],
@@ -38,14 +40,36 @@ handle_call(State, {join, From, Nick, Channel}) ->
             NewState = State#state{channels = NewChannels, nicks = NewNicks},
             channel:start(Channel),
             Result = sendRequest(list_to_atom(Channel), {join, From}),
-            io:fwrite("Channel ~p created!~n", [Channel]),
-            io:fwrite("Result2: ~p~n", [Result]),
+            %io:fwrite("Channel ~p created!~n", [Channel]),
+            %io:fwrite("Result2: ~p~n", [Result]),
             {reply, Result, NewState}
     end;
+
+handle_call(State, {nick, Nick, OldNick}) ->
+    case lists:member(Nick, State#state.nicks) of
+        true ->
+            {reply, {error, nick_taken, "nick_taken"}, State};
+        false ->
+            NewNicks = lists:delete(OldNick, State#state.nicks),
+            NewNickList = [Nick | NewNicks],
+            NewState = State#state{nicks = NewNickList},
+            {reply, ok, NewState}
+    end;
+
+handle_call(State, kill_channels) ->
+  % Iterates through all channels registered to a server and stops them
+  io:fwrite("Kill channel funktionen!   "),
+  Channels = State#state.channels,
+  io:fwrite("Channels: ~p~n", [Channels]),
+  lists:foreach(fun(Channel) -> channel:stop(list_to_atom(Channel)) end, Channels),
+  {reply, ok, State};
+            
 
 handle_call(State, _) ->
     {reply, ok, State}.
 
-stop(ServerAtom) ->
-    genserver:stop(ServerAtom),
+stop(Server) ->
+    genserver:request(Server, kill_channels),
+    io:fwrite("Server ~p stopped by Walter!~n", [Server]),
+    genserver:stop(Server),
     ok.
