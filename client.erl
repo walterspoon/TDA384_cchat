@@ -65,11 +65,11 @@ handle(St, {nick, NewNick}) ->
     io:fwrite("Result Nick Change: ~p~n", [Result]),
     case Result of
         ok ->
-            io:fwrite("     NICK NOT TAKEN!     "),
+            io:fwrite("     NICK NOT TAKEN!     ~n"),
             NewSt = St#client_st{nick = NewNick},
             {reply, Result, NewSt};
         {error, nick_taken, _} ->
-            io:fwrite("     NICK TAKEN!     "),
+            io:fwrite("     NICK TAKEN!     ~n"),
             {reply, Result, St}
     end;
 
@@ -83,7 +83,7 @@ handle(St, whoami) ->
 
 % Incoming message (from channel, to GUI)
 handle(St = #client_st{gui = GUI}, {message_receive, Channel, Nick, Msg}) ->
-    io:fwrite("Vi kommer hit!  "),
+    io:fwrite("Vi kommer hit!  ~n"),
     io:fwrite("Channel: ~p, Nick: ~p, Msg: ~p~n", [Channel, Nick, Msg]),
     gen_server:call(GUI, {message_receive, Channel, Nick++"> "++Msg}),
     {reply, ok, St} ;

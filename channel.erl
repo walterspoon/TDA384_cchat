@@ -29,11 +29,11 @@ handle_call(State, {join, Client}) ->
     case lists:member(Client, State#state.clients) of
         true ->
             % Client is alredy in channel
-            io:fwrite(" Already in channel! "),
+            io:fwrite(" Already in channel! ~n"),
             {reply, {error, user_already_joined, "You are already in channel!"}, State};
         false ->
             NewState = State#state{clients = [Client|State#state.clients]},
-            io:fwrite(" Creating the channel! "),
+            io:fwrite(" Creating the channel! ~n"),
             {reply, ok, NewState}
     end;
 
@@ -43,11 +43,11 @@ handle_call(State, {leave, Client}) ->
         true ->
             % Client is in channel
             NewState = State#state{clients = lists:delete(Client, State#state.clients)},
-            io:fwrite(" Leaving the channel! "),
+            io:fwrite(" Leaving the channel! ~n"),
             {reply, ok, NewState};
         false ->
             % Client is not in channel
-            io:fwrite(" Not in channel! "),
+            io:fwrite(" Not in channel! ~n"),
             {reply, {error, user_not_joined, "You are not in channel!"}, State}
     end;
 
@@ -66,7 +66,7 @@ handle_call(State, {message, From, Nick, Msg}) ->
             {reply, ok, State};
         false ->
             % Client is not in channel
-            io:fwrite(" Not in channel! "),
+            io:fwrite(" Not in channel! ~n"),
             {reply, {error, user_not_joined, "You are not in channel!"}, State}
     end;
 
@@ -74,6 +74,6 @@ handle_call(State, _) ->
     {reply, ok, State}.
 
 stop(Channel) ->
-    io:fwrite(" STOP I CHANNEL!  "),
+    io:fwrite(" STOP I CHANNEL!  ~n"),
     genserver:stop(Channel),
     ok.

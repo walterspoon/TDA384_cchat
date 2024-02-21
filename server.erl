@@ -28,14 +28,17 @@ handle_call(State, {join, From, Nick, Channel}) ->
     case lists:member(Channel, State#state.channels) of
         true ->
             % The channel exists
-            NewNicks = [Nick | State#state.nicks],
+            % Add the nick of joining client to list of nicks
+            NewNicks = lists:umerge([Nick], State#state.nicks),
             Result = sendRequest(list_to_atom(Channel), {join, From}),
             NewState = State#state{nicks = NewNicks},
-            io:fwrite("Result: ~p~n", [Result]),
+            io:fwrite("Nicks: ~p~n", [NewNicks]),
             {reply, Result, NewState};
         false ->
             % The channel does not exist
-            NewNicks = [Nick | State#state.nicks],
+            % Add the nick of joining client to list of nicks
+            NewNicks = lists:umerge([Nick], State#state.nicks),
+            % Add the new channel to the list of channels
             NewChannels = [Channel | State#state.channels],
             NewState = State#state{channels = NewChannels, nicks = NewNicks},
             channel:start(Channel),
@@ -58,7 +61,7 @@ handle_call(State, {nick, Nick, OldNick}) ->
 
 handle_call(State, kill_channels) ->
   % Iterates through all channels registered to a server and stops them
-  io:fwrite("Kill channel funktionen!   "),
+  io:fwrite("Kill channel funktionen!   ~n"),
   Channels = State#state.channels,
   io:fwrite("Channels: ~p~n", [Channels]),
   lists:foreach(fun(Channel) -> channel:stop(list_to_atom(Channel)) end, Channels),
