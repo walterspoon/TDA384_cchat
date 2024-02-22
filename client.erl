@@ -19,8 +19,8 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
     }.
 
 % Send request via genserver
-sendRequest(RecieverPid, Request) ->
-    try genserver:request(RecieverPid, Request) of
+sendRequest(SendToPid, Request) ->
+    try genserver:request(SendToPid, Request) of
         Response -> Response    % Return the response from the genserver
     catch
         timeout_error -> {error, server_not_reached, "Server not reached!"}

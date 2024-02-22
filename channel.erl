@@ -29,7 +29,7 @@ handle_call(State, {join, Client}) ->
     % Case to see if client is already in channel
     case lists:member(Client, State#state.clients) of
         true ->
-            % Client is alredy in channel
+            % Client is already in channel
             {reply, {error, user_already_joined, "You are already in channel!"}, State};
         false ->
             % Add client to clients
