@@ -2,10 +2,11 @@
 -export([start/1, stop/1, handle_call/2]).
 
 -record(state, {
-    nicks = [],   % list of all nicks registered so far
-    channels = [] % list of all channels created so far
+    nicks,   % list of all nicks registered so far
+    channels % list of all channels created so far
 }).
 
+% Initial state
 initial_state() ->
     #state{
         nicks = [],
@@ -15,11 +16,12 @@ initial_state() ->
 % Send request via genserver
 sendRequest(RecieverPid, Request) ->
     try genserver:request(RecieverPid, Request) of
-        Response -> Response
+        Response -> Response    % Return the response from the genserver
     catch
         timeout_error -> {error, server_not_reached, "Server not reached!"}
     end.
 
+% Start server via genserver
 start(ServerAtom) ->
     genserver:start(ServerAtom, initial_state(), fun handle_call/2).
 
@@ -28,30 +30,31 @@ handle_call(State, {join, From, Nick, Channel}) ->
     case lists:member(Channel, State#state.channels) of
         true ->
             % The channel exists
-            % Add the nick of joining client to list of nicks
+            % Add the nick of joining client to list of nicks if not already in server (umerge)
             NewNicks = lists:umerge([Nick], State#state.nicks),
             Result = sendRequest(list_to_atom(Channel), {join, From}),
             NewState = State#state{nicks = NewNicks},
-            io:fwrite("Nicks: ~p~n", [NewNicks]),
             {reply, Result, NewState};
         false ->
             % The channel does not exist
-            % Add the nick of joining client to list of nicks
+            % Add the nick of joining client to list of nicks if not already in server (umerge)
             NewNicks = lists:umerge([Nick], State#state.nicks),
             % Add the new channel to the list of channels
             NewChannels = [Channel | State#state.channels],
             NewState = State#state{channels = NewChannels, nicks = NewNicks},
+            % Start channel
             channel:start(Channel),
             Result = sendRequest(list_to_atom(Channel), {join, From}),
-            %io:fwrite("Channel ~p created!~n", [Channel]),
-            %io:fwrite("Result2: ~p~n", [Result]),
             {reply, Result, NewState}
     end;
 
+% Change nick on server
 handle_call(State, {nick, Nick, OldNick}) ->
     case lists:member(Nick, State#state.nicks) of
+         % If nick already exists
         true ->
             {reply, {error, nick_taken, "nick_taken"}, State};
+         % Add new nick, delete old nick
         false ->
             NewNicks = lists:delete(OldNick, State#state.nicks),
             NewNickList = [Nick | NewNicks],
@@ -59,20 +62,20 @@ handle_call(State, {nick, Nick, OldNick}) ->
             {reply, ok, NewState}
     end;
 
-handle_call(State, kill_channels) ->
+% Stop all channels in server
+handle_call(State, stop_channels) ->
   % Iterates through all channels registered to a server and stops them
-  io:fwrite("Kill channel funktionen!   ~n"),
   Channels = State#state.channels,
-  io:fwrite("Channels: ~p~n", [Channels]),
   lists:foreach(fun(Channel) -> channel:stop(list_to_atom(Channel)) end, Channels),
   {reply, ok, State};
             
-
+% Catch all calls that does not pattern match
 handle_call(State, _) ->
     {reply, ok, State}.
 
+% Stop server via genserver
 stop(Server) ->
-    genserver:request(Server, kill_channels),
-    io:fwrite("Server ~p stopped by Walter!~n", [Server]),
+    % stop all channels before stopping server
+    genserver:request(Server, stop_channels),
     genserver:stop(Server),
     ok.

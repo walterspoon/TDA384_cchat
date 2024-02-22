@@ -21,7 +21,7 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 % Send request via genserver
 sendRequest(RecieverPid, Request) ->
     try genserver:request(RecieverPid, Request) of
-        Response -> Response
+        Response -> Response    % Return the response from the genserver
     catch
         timeout_error -> {error, server_not_reached, "Server not reached!"}
     end.
@@ -37,12 +37,16 @@ sendRequest(RecieverPid, Request) ->
 % Join channel
 handle(St, {join, Channel}) ->
     Server = St#client_st.server,
-    Result = sendRequest(Server, {join, self(), St#client_st.nick, Channel}),
-    {reply, Result, St};
+    case whereis(Server) of % returns pid or undefined if process has ended
+        undefined ->
+            {reply, {error, server_not_reached, "Channel does not respond"}, St};
+        _ ->
+            Result = sendRequest(Server, {join, self(), St#client_st.nick, Channel}),
+            {reply, Result, St}
+    end;
 
 % Leave channel
 handle(St, {leave, Channel}) ->
-    % Result = Channel ! {St#client_st.nick, {leave, self()}},
     Result = sendRequest(list_to_atom(Channel), {leave, self()}),
     {reply, Result, St};
 
@@ -56,20 +60,17 @@ handle(St, {message_send, Channel, Msg}) ->
         {reply, Result, St}
     end;
 
-% This case is only relevant for the distinction assignment!
-% Change nick (no check, local only)
+% Change nick (check)
 handle(St, {nick, NewNick}) ->
     Server = St#client_st.server,
     OldNick = St#client_st.nick,
+    % Try to change nick in server, if okey change local nick
     Result = sendRequest(Server, {nick, NewNick, OldNick}),
-    io:fwrite("Result Nick Change: ~p~n", [Result]),
     case Result of
         ok ->
-            io:fwrite("     NICK NOT TAKEN!     ~n"),
             NewSt = St#client_st{nick = NewNick},
             {reply, Result, NewSt};
         {error, nick_taken, _} ->
-            io:fwrite("     NICK TAKEN!     ~n"),
             {reply, Result, St}
     end;
 
@@ -83,8 +84,6 @@ handle(St, whoami) ->
 
 % Incoming message (from channel, to GUI)
 handle(St = #client_st{gui = GUI}, {message_receive, Channel, Nick, Msg}) ->
-    io:fwrite("Vi kommer hit!  ~n"),
-    io:fwrite("Channel: ~p, Nick: ~p, Msg: ~p~n", [Channel, Nick, Msg]),
     gen_server:call(GUI, {message_receive, Channel, Nick++"> "++Msg}),
     {reply, ok, St} ;
 
