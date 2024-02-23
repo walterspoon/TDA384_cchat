@@ -23,7 +23,8 @@ sendRequest(SendToPid, Request) ->
     try genserver:request(SendToPid, Request) of
         Response -> Response    % Return the response from the genserver
     catch
-        timeout_error -> {error, server_not_reached, "Server not reached!"}
+        timeout_error -> {error, server_not_reached, "Server not reached!"};
+        {'EXIT', _} -> {error, server_not_reached, "Server not reached!"}
     end.
 
 % handle/2 handles each kind of request from GUI

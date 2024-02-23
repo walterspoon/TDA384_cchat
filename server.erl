@@ -66,7 +66,7 @@ handle_call(State, {nick, Nick, OldNick}) ->
 handle_call(State, stop_channels) ->
   % Iterates through all channels registered to a server and stops them
   Channels = State#state.channels,
-  lists:foreach(fun(Channel) -> channel:stop(list_to_atom(Channel)) end, Channels),
+  lists:foreach(fun(Channel) -> genserver:stop(list_to_atom(Channel)) end, Channels),   
   {reply, ok, State};
             
 % Catch all calls that does not pattern match
